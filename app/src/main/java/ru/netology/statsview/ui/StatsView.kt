@@ -75,11 +75,18 @@ class StatsView @JvmOverloads constructor(
 
         var startAngle = -90F
         val total = data.sum()
+        val involvedColors: MutableList<Int> = mutableListOf()
         data.forEachIndexed { index, datum ->
             val angle = percentage(datum, total) * 360F
             paint.color = colors.getOrElse(index) { generateRandomColor() }
+                .also { involvedColors.add(it) }
             canvas.drawArc(oval, startAngle, angle, false, paint)
             startAngle += angle
+        }
+
+        if (involvedColors.isNotEmpty()) {
+            paint.color = involvedColors[0]
+            canvas.drawPoint(center.x, center.y - radius, paint)
         }
 
         canvas.drawText(
