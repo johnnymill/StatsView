@@ -1,5 +1,6 @@
 package ru.netology.statsview.ui
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -7,10 +8,14 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import android.view.animation.LinearInterpolator
 import androidx.core.content.withStyledAttributes
 import ru.netology.statsview.R
 import ru.netology.statsview.utils.AndroidUtils
 import java.lang.Integer.min
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
 
 class StatsView @JvmOverloads constructor(
@@ -20,10 +25,16 @@ class StatsView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : View(context, attributeSet, defStyleAttr, defStyleRes) {
 
+    private val animDuration = 3000L
+    private var animProgress = 0F
+    private var progressAnimator: ValueAnimator? = null
+    private var animRotation = 0F
+    private var rotationAnimator: ValueAnimator? = null
+
     var data: List<Float> = emptyList()
         set(value) {
             field = value
-            invalidate()
+            update()
         }
 
     private var textSize = AndroidUtils.dp(context, 20).toFloat()
@@ -73,20 +84,25 @@ class StatsView @JvmOverloads constructor(
             return
         }
 
-        var startAngle = -90F
+        val startDotAngle = -90F
+        var startAngle = startDotAngle
         val total = data.sum()
         val involvedColors: MutableList<Int> = mutableListOf()
         data.forEachIndexed { index, datum ->
             val angle = percentage(datum, total) * 360F
             paint.color = colors.getOrElse(index) { generateRandomColor() }
                 .also { involvedColors.add(it) }
-            canvas.drawArc(oval, startAngle, angle, false, paint)
+            canvas.drawArc(oval, startAngle + animRotation, angle * animProgress, false, paint)
             startAngle += angle
         }
 
         if (involvedColors.isNotEmpty()) {
             paint.color = involvedColors[0]
-            canvas.drawPoint(center.x, center.y - radius, paint)
+            val angle = PI * 2 * (startDotAngle + animRotation) / 360
+            canvas.drawPoint(
+                center.x + radius * cos(angle).toFloat(),
+                center.y + radius * sin(angle).toFloat(),
+                paint)
         }
 
         canvas.drawText(
@@ -102,6 +118,44 @@ class StatsView @JvmOverloads constructor(
             center.y + textPaint.textSize * 5 / 4,
             textPaint
         )
+    }
+
+    private fun update() {
+        progressAnimator?.let {
+            // Clear the previous animation which may be still in progress by the moment
+            it.removeAllListeners()
+            it.cancel()
+        }
+        rotationAnimator?.let {
+            // Clear the previous animation which may be still in progress by the moment
+            it.removeAllListeners()
+            it.cancel()
+        }
+
+        animProgress = 0F
+        animRotation = 0F
+
+        progressAnimator = ValueAnimator.ofFloat(0F, 1F).apply {
+            addUpdateListener { anim ->
+                animProgress = anim.animatedValue as Float
+                invalidate()
+            }
+            duration = animDuration
+            interpolator = LinearInterpolator()
+        }.also {
+            it.start()
+        }
+
+        rotationAnimator = ValueAnimator.ofFloat(0F, 360F).apply {
+            addUpdateListener { anim ->
+                animRotation = anim.animatedValue as Float
+                invalidate()
+            }
+            duration = animDuration
+            interpolator = LinearInterpolator()
+        }.also {
+            it.start()
+        }
     }
 
     private fun generateRandomColor() = Random.nextInt(0xff000000.toInt(), 0xffffffff.toInt())
